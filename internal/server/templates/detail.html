@@ -1,0 +1,186 @@
+{{define "layout_detail"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{if .Session.Summary}}{{.Session.Summary}}{{else}}Session{{end}} — prauject</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/xterm.min.css">
+    <script src="/static/htmx.min.js"></script>
+    <script src="/static/xterm.min.js"></script>
+    <script src="/static/xterm-addon-fit.min.js"></script>
+
+
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="/" class="logo">prauject</a>
+            <div class="nav-detail">
+                <span class="detail-project">{{shortProject .Session.Project}}</span>
+                {{if .Session.GitBranch}}<span class="branch-badge">{{.Session.GitBranch}}</span>{{end}}
+            </div>
+        </nav>
+    </header>
+    <main class="detail-main">
+        {{template "session_detail" .}}
+    </main>
+    <script src="/static/app.js"></script>
+</body>
+</html>
+{{end}}
+
+{{define "session_detail"}}
+<div class="detail-top">
+    <div class="detail-header">
+        <div class="detail-title-row">
+            <h1>{{if .Session.Summary}}{{.Session.Summary}}{{else}}Session {{truncate .Session.ID 8}}{{end}}</h1>
+            <div id="terminal-section">
+                {{template "terminal_section" .}}
+            </div>
+        </div>
+        <div class="detail-meta">
+            <span>{{.Session.Project}}</span>
+            {{if .Session.GitBranch}}<span class="branch-badge">{{.Session.GitBranch}}</span>{{end}}
+            <span>{{.Session.MessageCount}} messages</span>
+            <span>{{shortTime .Session.Created}} — {{shortTime .Session.Modified}}</span>
+        </div>
+    </div>
+</div>
+
+{{if .Running}}
+<div id="xterm-overlay" class="xterm-overlay" style="display:none" onclick="if(event.target===this)toggleTerminal()">
+    <div class="xterm-modal">
+        <div class="xterm-modal-header">
+            <div class="xterm-modal-title">{{if .Session.Summary}}{{.Session.Summary}}{{else}}Session {{truncate .Session.ID 8}}{{end}}</div>
+            <div class="xterm-modal-controls">
+                <span>{{.Session.Project}}</span>
+                {{if .Session.GitBranch}}<span class="branch-badge">{{.Session.GitBranch}}</span>{{end}}
+                <span class="status-running">running</span>
+                <code>{{.AttachCmd}}</code>
+                <button class="copy-btn" onclick="copyAttachCmd(this)" data-cmd="{{.AttachCmd}}">copy</button>
+                <button class="terminal-toggle" onclick="toggleTerminal()">close</button>
+            </div>
+        </div>
+        <div id="xterm-container" data-session-id="{{.Session.ID}}"></div>
+    </div>
+</div>
+{{end}}
+
+<div class="detail-pane-inner" id="detail-scroll">
+<div class="chat-log">
+    {{if and (not .Session.FullyLoaded) (gt .Session.TotalMessages (len .Session.Messages))}}
+    <div id="load-earlier" class="load-earlier">
+        <button hx-get="/sessions/{{.Session.ID}}/earlier" hx-target="#load-earlier" hx-swap="outerHTML"
+                class="load-earlier-btn">Load {{if gt (sub .Session.TotalMessages (len .Session.Messages)) 200}}200{{else}}{{sub .Session.TotalMessages (len .Session.Messages)}}{{end}} earlier messages</button>
+    </div>
+    {{end}}
+    {{$prevRole := ""}}
+    {{range .Session.Messages}}
+    {{if or .Content .ToolCalls}}
+    <div class="chat-msg chat-{{.Role}}{{if eq .Role $prevRole}} chat-continuation{{end}}">
+        {{if ne .Role $prevRole}}
+        <div class="chat-msg-header">
+            <span class="chat-role">{{.Role}}</span>
+            {{if not .Timestamp.IsZero}}<span class="chat-time">{{shortTime .Timestamp}}</span>{{end}}
+        </div>
+        {{else}}
+        {{if not .Timestamp.IsZero}}<span class="chat-time-inline">{{shortTime .Timestamp}}</span>{{end}}
+        {{end}}
+        {{if .Content}}<div class="chat-content{{if eq .Role "assistant"}} markdown{{end}}">{{.ContentHTML}}</div>{{end}}
+        {{range .ToolCalls}}
+        <div class="tool-call">
+            <span class="tool-name">{{.Name}}</span>
+            {{if .Input}}<span class="tool-input">{{truncate .Input 120}}</span>{{end}}
+        </div>
+        {{end}}
+    </div>
+    {{$prevRole = .Role}}
+    {{end}}
+    {{end}}
+    {{if not .Session.Messages}}
+    <div class="empty-state">No messages available — session log may have been cleaned up.</div>
+    {{end}}
+</div>
+<div id="msg-count" data-count="{{len .Session.Messages}}" data-session="{{.Session.ID}}" style="display:none"></div>
+</div>
+{{end}}
+
+{{define "new_messages"}}
+{{$prevRole := .PrevRole}}
+{{range .Messages}}
+{{if or .Content .ToolCalls}}
+<div class="chat-msg chat-{{.Role}}{{if eq .Role $prevRole}} chat-continuation{{end}}">
+    {{if ne .Role $prevRole}}
+    <div class="chat-msg-header">
+        <span class="chat-role">{{.Role}}</span>
+        {{if not .Timestamp.IsZero}}<span class="chat-time">{{shortTime .Timestamp}}</span>{{end}}
+    </div>
+    {{else}}
+    {{if not .Timestamp.IsZero}}<span class="chat-time-inline">{{shortTime .Timestamp}}</span>{{end}}
+    {{end}}
+    {{if .Content}}<div class="chat-content{{if eq .Role "assistant"}} markdown{{end}}">{{.ContentHTML}}</div>{{end}}
+    {{range .ToolCalls}}
+    <div class="tool-call">
+        <span class="tool-name">{{.Name}}</span>
+        {{if .Input}}<span class="tool-input">{{truncate .Input 120}}</span>{{end}}
+    </div>
+    {{end}}
+</div>
+{{$prevRole = .Role}}
+{{end}}
+{{end}}
+<div id="msg-count" data-count="{{.Total}}" style="display:none"></div>
+{{end}}
+
+{{define "earlier_messages"}}
+{{if .HasMore}}
+<div id="load-earlier" class="load-earlier">
+    <button hx-get="/sessions/{{.SessionID}}/earlier" hx-target="#load-earlier" hx-swap="outerHTML"
+            class="load-earlier-btn">Load {{if gt .RemainingCount 200}}200{{else}}{{.RemainingCount}}{{end}} earlier messages</button>
+</div>
+{{end}}
+{{$prevRole := ""}}
+{{range .Messages}}
+{{if or .Content .ToolCalls}}
+<div class="chat-msg chat-{{.Role}}{{if eq .Role $prevRole}} chat-continuation{{end}}">
+    {{if ne .Role $prevRole}}
+    <div class="chat-msg-header">
+        <span class="chat-role">{{.Role}}</span>
+        {{if not .Timestamp.IsZero}}<span class="chat-time">{{shortTime .Timestamp}}</span>{{end}}
+    </div>
+    {{else}}
+    {{if not .Timestamp.IsZero}}<span class="chat-time-inline">{{shortTime .Timestamp}}</span>{{end}}
+    {{end}}
+    {{if .Content}}<div class="chat-content{{if eq .Role "assistant"}} markdown{{end}}">{{.ContentHTML}}</div>{{end}}
+    {{range .ToolCalls}}
+    <div class="tool-call">
+        <span class="tool-name">{{.Name}}</span>
+        {{if .Input}}<span class="tool-input">{{truncate .Input 120}}</span>{{end}}
+    </div>
+    {{end}}
+</div>
+{{$prevRole = .Role}}
+{{end}}
+{{end}}
+{{end}}
+
+{{define "terminal_section"}}
+{{if .Running}}
+<div class="terminal-inline" id="terminal-controls">
+    <span class="status-running">running</span>
+    <span class="attach-cmd">
+        <code>{{.AttachCmd}}</code>
+        <button class="copy-btn" onclick="copyAttachCmd(this)" data-cmd="{{.AttachCmd}}">copy</button>
+    </span>
+    <button class="terminal-toggle" onclick="toggleTerminal()">terminal</button>
+</div>
+{{else}}
+<div hx-get="/sessions/{{.Session.ID}}/status" hx-trigger="every 5s" hx-target="#terminal-section" hx-swap="innerHTML">
+<form hx-post="/sessions/{{.Session.ID}}/resume" hx-swap="none">
+    <button type="submit" class="resume-btn">&#9654; Resume</button>
+</form>
+</div>
+{{end}}
+{{end}}

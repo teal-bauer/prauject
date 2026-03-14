@@ -1,0 +1,56 @@
+{{define "loading_bar"}}
+<div class="loading-bar" hx-get="/loading" hx-trigger="every 200ms" hx-swap="outerHTML">
+    <div class="loading-progress" style="width: {{if .LoadingTotal}}{{printf "%.0f" (divf .LoadingCurrent .LoadingTotal)}}%{{else}}0%{{end}}"></div>
+    <span class="loading-text">Loading sessions… {{.LoadingCurrent}}/{{.LoadingTotal}}</span>
+</div>
+{{end}}
+
+{{define "session_list"}}
+{{if not .LoadingDone}}
+{{template "loading_bar" .}}
+{{end}}
+{{if .ActiveSessions}}
+<div class="active-section">
+    <div class="section-label">Active</div>
+    {{range .ActiveSessions}}
+    {{template "session_card" .}}
+    {{end}}
+</div>
+<div class="section-label">All Sessions</div>
+{{end}}
+{{if eq .Sort "project"}}
+    {{range groupByProject .Sessions}}
+    <div class="project-group">
+        <h2 class="project-header">{{shortProject .Project}}<span class="project-path">{{.Project}}</span></h2>
+        {{range .Sessions}}
+        {{template "session_card" .}}
+        {{end}}
+    </div>
+    {{end}}
+{{else}}
+    {{range .Sessions}}
+    {{template "session_card" .}}
+    {{end}}
+{{end}}
+{{if not .Sessions}}
+    <div class="empty-state">No sessions found.</div>
+{{end}}
+{{end}}
+
+{{define "session_card"}}
+<a href="/sessions/{{.ID}}" class="session-card{{if .Active}} is-active-session{{end}}"
+   hx-get="/sessions/{{.ID}}?fragment=1" hx-target="#detail-pane" hx-push-url="/sessions/{{.ID}}" hx-swap="innerHTML">
+    <div class="session-meta">
+        <span class="project-badge">{{shortProject .Project}}</span>
+        {{if .GitBranch}}<span class="branch-badge">{{.GitBranch}}</span>{{end}}
+        {{if isRunning .ID}}<span class="status-running">resumed</span>{{end}}
+        <span class="session-time-right">
+            {{if .Active}}<span class="status-dot" title="active"></span>{{end}}
+            <span class="msg-count">{{.MessageCount}} msgs</span>
+            <span class="session-time" title="{{shortTime .Modified}}">{{humanTime .Modified}}</span>
+        </span>
+    </div>
+    <div class="session-summary">{{if .Summary}}{{.Summary}}{{else if and .FirstPrompt (not (isNoise .FirstPrompt))}}{{.FirstPrompt}}{{else}}Session {{truncate .ID 8}}{{end}}</div>
+    {{if .LastMessage}}<div class="session-preview">{{.LastMessage}}</div>{{end}}
+</a>
+{{end}}

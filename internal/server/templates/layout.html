@@ -1,0 +1,56 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>prauject</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/xterm.min.css">
+    <script src="/static/htmx.min.js"></script>
+    <script src="/static/xterm.min.js"></script>
+    <script src="/static/xterm-addon-fit.min.js"></script>
+
+
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="/" class="logo">prauject</a>
+            <div class="search-bar">
+                <input type="search" name="q" placeholder="search sessions…"
+                    hx-get="/search" hx-trigger="input changed delay:300ms, search"
+                    hx-target="#session-list" hx-push-url="false"
+                    value="{{.Query}}">
+            </div>
+            <div class="nav-meta">
+                <span class="session-count">{{.Total}} sessions</span>
+            </div>
+        </nav>
+    </header>
+    <div class="split-layout">
+        <aside class="sidebar">
+            <div class="controls">
+                <div class="sort-toggle">
+                    <a href="/?sort=recent" class="sort-btn{{if eq .Sort "recent"}} active{{end}}"
+                       hx-get="/?sort=recent" hx-target="#session-list" hx-push-url="false">Recent</a>
+                    <a href="/?sort=project" class="sort-btn{{if eq .Sort "project"}} active{{end}}"
+                       hx-get="/?sort=project" hx-target="#session-list" hx-push-url="false">By Project</a>
+                </div>
+            </div>
+            <div id="session-list" class="session-list-scroll">
+                {{template "session_list" .}}
+            </div>
+        </aside>
+        <main id="detail-pane" class="detail-pane">
+            {{if .Detail}}
+                {{template "session_detail" .Detail}}
+            {{else}}
+                <div class="empty-detail">Select a session</div>
+            {{end}}
+        </main>
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>
+{{end}}
