@@ -2,6 +2,9 @@
 
 Browse, search, and resume [Claude Code](https://claude.ai/code) sessions in a local web UI.
 
+![Session list](docs/screenshot-home.jpeg)
+![Session detail](docs/screenshot-detail.jpeg)
+
 ```sh
 go install github.com/teal-bauer/prauject@latest
 prauject --port 8090
